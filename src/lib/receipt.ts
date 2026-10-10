@@ -6,7 +6,7 @@ export type OrderLine = {
   quantity: number
   unitPrice: number
   lineTotal: number
-  portion?: string
+  portion?: string | undefined
 }
 
 export type OrderDraft = {
@@ -14,8 +14,8 @@ export type OrderDraft = {
   mode: string
   locationName: string
   customerName: string
-  customerPhone?: string
-  note?: string
+  customerPhone?: string | undefined
+  note?: string | undefined
 }
 
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
