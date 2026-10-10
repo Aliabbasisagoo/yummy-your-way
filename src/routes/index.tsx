@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
-import { ArrowRight, ChefHat, ChevronDown, Flame, MapPin, Minus, Phone, Plus, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, Utensils } from 'lucide-react'
+import { useServerFn } from '@tanstack/react-start'
+import { useRef, useState, type FormEvent } from 'react'
+import { ArrowRight, CheckCircle2, ChefHat, ChevronDown, Flame, Loader2, MapPin, Minus, Phone, Plus, Search, ShieldCheck, ShoppingBag, Sparkles, Truck, Utensils } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { categories, menuItems, money, cartTotal, changeQuantity, type MenuItem } from '@/lib/menu'
+import { placeOrder } from '@/lib/orders.functions'
 import feast from '@/assets/feast.jpg'
 
 export const Route = createFileRoute('/')({
@@ -33,10 +35,38 @@ function Index() {
   const [locationOpen, setLocationOpen] = useState(false)
   const [basketOpen, setBasketOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [note, setNote] = useState('')
+  const [placing, setPlacing] = useState(false)
+  const [placed, setPlaced] = useState<{ orderRef: string; receipt: string } | null>(null)
+  const [orderError, setOrderError] = useState('')
+  const sendOrder = useServerFn(placeOrder)
   const menuRef = useRef<HTMLElement>(null)
   const total = cartTotal(cart)
   const count = Object.values(cart).reduce((a,b) => a+b,0)
   const update = (id: string, delta: number) => setCart(previous => changeQuantity(previous,id,delta))
+  const locationMissing = location === 'Select your location'
+  const closeCheckout = () => {
+    setCheckoutOpen(false)
+    if (placed) { setCart({}); setPlaced(null); setCustomerName(''); setCustomerPhone(''); setNote(''); setOrderError('') }
+  }
+  const submitOrder = async (event: FormEvent) => {
+    event.preventDefault()
+    if (placing || locationMissing) return
+    setPlacing(true)
+    setOrderError('')
+    try {
+      const result = await sendOrder({ data: { cart, mode: mode as 'Delivery' | 'Pick-Up', locationName: location, customerName, customerPhone, note } })
+      if (result.ok) setPlaced({ orderRef: result.orderRef, receipt: result.receipt })
+      else setOrderError(result.error)
+    } catch (error) {
+      console.error(error)
+      setOrderError('Something went wrong while sending your order. Please call the restaurant to place it.')
+    } finally {
+      setPlacing(false)
+    }
+  }
   const filtered = menuItems.filter(item => (category === 'Popular' ? Boolean(item.badge) : item.category === category) && `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase()))
   const modeButtons = <div className="order-modes">{['Delivery','Pick-Up'].map(type => <Button key={type} variant={mode === type ? 'default' : 'ghost'} onClick={() => setMode(type)}>{type === 'Delivery' ? <Truck /> : <ShoppingBag />}{type}</Button>)}</div>
   const basket = <div className="basket"><div className="basket-title"><ShoppingBag /><h2>Your order</h2><span>{count} {count === 1 ? 'item' : 'items'}</span></div>
@@ -58,6 +88,9 @@ function Index() {
     {count > 0 && <Button className="mobile-basket" onClick={() => setBasketOpen(true)}><span><ShoppingBag className="inline mr-2" />View basket · {count} items</span><strong>{money(total)}</strong></Button>}
     <Dialog open={locationOpen} onOpenChange={setLocationOpen}><DialogContent><DialogTitle>{mode === 'Delivery' ? 'Where shall we deliver?' : 'Choose your pick-up location'}</DialogTitle><DialogDescription>A delicious Anarkali feast starts here.</DialogDescription><form className="modal-form" onSubmit={event => {event.preventDefault();setLocation(mode === 'Pick-Up' ? 'Commercial Market' : `${draftLocation}, ${city}`);setLocationOpen(false)}}>{modeButtons}<label>City<select value={city} onChange={event => setCity(event.target.value)}><option>Rawalpindi</option><option>Islamabad</option></select></label>{mode === 'Delivery' ? <label>Area or delivery address<input required placeholder="Enter your area or address" value={draftLocation} onChange={event => setDraftLocation(event.target.value)} /></label> : <p className="checkout-note">Commercial Market, Satellite Town, Rawalpindi</p>}<Button type="submit">Confirm location <ArrowRight /></Button></form></DialogContent></Dialog>
     <Dialog open={basketOpen} onOpenChange={setBasketOpen}><DialogContent><DialogTitle>Your Anarkali basket</DialogTitle><DialogDescription>Your favourites, all in one place.</DialogDescription>{basket}</DialogContent></Dialog>
-    <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}><DialogContent><DialogTitle>Your feast is almost ready</DialogTitle><DialogDescription>{count} {count === 1 ? 'item' : 'items'} · {money(total)}</DialogDescription><div className="modal-form"><p className="checkout-note">Online checkout is not available yet. Call the restaurant to confirm current prices, availability and place your order.</p><Button asChild><a href="tel:03314944424"><Phone />Call to order · 0331 4944424</a></Button><Button variant="outline" onClick={() => setCheckoutOpen(false)}>Back to menu</Button></div></DialogContent></Dialog>
+    <Dialog open={checkoutOpen} onOpenChange={open => open ? setCheckoutOpen(true) : closeCheckout()}><DialogContent><DialogTitle>{placed ? 'Your order is with the restaurant' : 'Your feast is almost ready'}</DialogTitle><DialogDescription>{count} {count === 1 ? 'item' : 'items'} · {money(total)}</DialogDescription>
+      {placed ? <div className="modal-form"><div className="order-sent"><CheckCircle2 /><div><strong>Order {placed.orderRef} has been sent</strong><span>The kitchen received your receipt on WhatsApp and will ring {customerPhone} to confirm the total and the time.</span></div></div><pre className="receipt">{placed.receipt}</pre><Button variant="outline" onClick={closeCheckout}>Back to menu</Button></div> : (
+      <form className="modal-form" onSubmit={submitOrder}><p className="checkout-note">{mode === 'Delivery' ? `Delivering to ${location}` : `Pick up from ${location}`}</p><label>Your name<input required minLength={2} maxLength={80} placeholder="e.g. Ali Khan" value={customerName} onChange={event => setCustomerName(event.target.value)} /></label><label>Phone number<input required type="tel" pattern="[+0-9\s-]{7,20}" placeholder="0300 1234567" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label><label>Anything we should know?<textarea rows={2} maxLength={300} placeholder="Extra spicy, no onions, arrive by 9pm…" value={note} onChange={event => setNote(event.target.value)} /></label>{locationMissing && <p className="checkout-error">Tell us where to deliver first — tap the location at the top of the page.</p>}{orderError && <p className="checkout-error">{orderError}</p>}<Button type="submit" disabled={placing || locationMissing}>{placing ? <Loader2 className="animate-spin" /> : <Phone />}{placing ? 'Sending…' : 'Send order on WhatsApp'}</Button><Button type="button" variant="outline" onClick={closeCheckout}>Back to menu</Button></form>)}
+    </DialogContent></Dialog>
   </>
 }
