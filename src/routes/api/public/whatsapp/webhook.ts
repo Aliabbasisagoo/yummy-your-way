@@ -1,22 +1,26 @@
 import { verifyWebhookRequest, WebhookError } from '@lovable.dev/webhooks-js'
 import { createFileRoute } from '@tanstack/react-router'
 
+import type { Json as DbJson } from '@/integrations/supabase/types'
 import { applyStatus, reconcileMessage, type InboxClient } from '@/lib/whatsapp-status'
 
-type Json = Record<string, unknown>
-type JsonArray = unknown[]
-
+type Dict = Record<string, unknown>
 type WebhookRow = {
   id: string
   event: string
-  payload: Json
+  payload: DbJson
   attempts: number
   processed_at: string | null
 }
 
-const asRecord = (value: unknown): Json =>
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : {}
-const asArray = (value: unknown): JsonArray => (Array.isArray(value) ? value : [])
+const asDict = (value: unknown): Dict =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Dict) : {}
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
+const text = (source: Dict, key: string): string | null =>
+  typeof source[key] === 'string' ? (source[key] as string) : null
+const nested = (source: Dict, key: string): Dict => asDict(source[key])
+const nestedList = (source: Dict, key: string): unknown[] => asList(source[key])
+const asJson = (value: unknown): DbJson => value as unknown as DbJson
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status })
@@ -29,12 +33,12 @@ function json(body: unknown, status = 200) {
  */
 async function storeEvent(
   db: InboxClient,
-  input: { deliveryId: string; event: string; payload: Json },
+  input: { deliveryId: string; event: string; payload: Dict },
 ): Promise<{ ok: true; row: WebhookRow } | { ok: false }> {
   const upsert = await db
     .from('whatsapp_webhook_events')
     .upsert(
-      { delivery_id: input.deliveryId, event: input.event, payload: input.payload },
+      { delivery_id: input.deliveryId, event: input.event, payload: asJson(input.payload) },
       { onConflict: 'delivery_id', ignoreDuplicates: true },
     )
   if (upsert.error) {
@@ -52,7 +56,7 @@ async function storeEvent(
     return { ok: false }
   }
 
-  return { ok: true, row: read.data as WebhookRow }
+  return { ok: true, row: read.data as unknown as WebhookRow }
 }
 
 async function markProcessed(db: InboxClient, id: string) {
@@ -74,32 +78,22 @@ async function markFailed(db: InboxClient, row: WebhookRow, reason: string) {
   if (error) console.error(`Could not record a processing failure for delivery ${row.id}: ${error.message}`)
 }
 
-async function saveMessage(db: InboxClient, value: Json): Promise<void> {
-  for (const raw of asArray(value.messages)) {
-    const message = asRecord(raw)
-    const messageId = typeof message.id === 'string' ? message.id : null
-    const from = typeof message.from === 'string' ? message.from : null
+async function saveMessage(db: InboxClient, value: Dict): Promise<void> {
+  for (const raw of nestedList(value, 'messages')) {
+    const message = asDict(raw)
+    const messageId = text(message, 'id')
+    const from = text(message, 'from')
     if (!messageId || !from) continue
 
-    const type = typeof message.type === 'string' ? message.type : 'unknown'
-    const text = asRecord(message.text)
-    const button = asRecord(message.button)
-    const interactive = asRecord(message.interactive)
-    const interactiveBody = asRecord(interactive.body)
-    const product = asRecord(message.product)
-    const productHeader = asRecord(product.header)
-
+    const type = text(message, 'type') ?? 'unknown'
     const body =
-      (typeof text.body === 'string' ? text.body : null) ??
-      (typeof button.text === 'string' ? button.text : null) ??
-      (typeof interactiveBody.text === 'string' ? interactiveBody.text : null) ??
-      (typeof product.header === 'string' ? product.header : null)
+      text(nested(message, 'text'), 'body') ??
+      text(nested(message, 'button'), 'text') ??
+      text(nested(nested(message, 'interactive'), 'body'), 'text') ??
+      text(nested(message, 'product'), 'header')
 
-    const media = asRecord(message[type] ?? message.media)
-    const mediaId = typeof media.id === 'string' ? media.id : null
-    const mediaMime = typeof media.mime_type === 'string' ? media.mime_type : null
-    const mediaCaption = typeof media.caption === 'string' ? media.caption : null
-    const mediaFilename = typeof media.filename === 'string' ? media.filename : null
+    const media = nested(message, message[type] === undefined ? 'media' : type)
+    const caption = text(media, 'caption')
 
     const { error } = await db
       .from('whatsapp_inbound_messages')
@@ -108,11 +102,11 @@ async function saveMessage(db: InboxClient, value: Json): Promise<void> {
         sender: from,
         type,
         body,
-        media_id: mediaId,
-        media_mime_type: mediaMime,
-        media_caption: mediaCaption ?? body,
-        media_filename: mediaFilename,
-        raw: message,
+        media_id: text(media, 'id'),
+        media_mime_type: text(media, 'mime_type'),
+        media_caption: caption ?? body,
+        media_filename: text(media, 'filename'),
+        raw: asJson(message),
       })
       .select('id')
 
@@ -122,20 +116,17 @@ async function saveMessage(db: InboxClient, value: Json): Promise<void> {
   }
 }
 
-async function saveStatuses(
-  db: InboxClient,
-  value: Json,
-  deliveryId: string,
-): Promise<void> {
-  for (const raw of asArray(value.statuses)) {
-    const status = asRecord(raw)
-    const messageId = typeof status.id === 'string' ? status.id : null
-    const state = typeof status.status === 'string' ? status.status : null
+async function saveStatuses(db: InboxClient, value: Dict, deliveryId: string): Promise<void> {
+  for (const raw of nestedList(value, 'statuses')) {
+    const status = asDict(raw)
+    const messageId = text(status, 'id')
+    const state = text(status, 'status')
     if (!messageId || !state) continue
 
+    const sentAt = status['timestamp']
     const providerTimestamp =
-      typeof status.timestamp === 'string' || typeof status.timestamp === 'number'
-        ? new Date(Number(status.timestamp) * 1000).toISOString()
+      typeof sentAt === 'number' || typeof sentAt === 'string'
+        ? new Date(Number(sentAt) * 1000).toISOString()
         : null
 
     const inserted = await db
@@ -145,7 +136,7 @@ async function saveStatuses(
           message_id: messageId,
           status: state,
           provider_timestamp: providerTimestamp,
-          errors: asArray(status.errors),
+          errors: asJson(nestedList(status, 'errors')),
           delivery_id: deliveryId,
         },
         { onConflict: 'delivery_id, message_id, status' },
@@ -163,10 +154,8 @@ async function saveStatuses(
 }
 
 async function processEvent(db: InboxClient, row: WebhookRow, deliveryId: string): Promise<void> {
-  const payload = asRecord(row.payload)
-  const entry = asRecord(asArray(payload.entry)[0])
-  const change = asRecord(asArray(entry.changes)[0])
-  const value = asRecord(change.value)
+  const payload = asDict(row.payload)
+  const value = nested(asDict(nestedList(asDict(nestedList(payload, 'entry')[0]), 'changes')[0]), 'value')
 
   if (row.event === 'whatsapp.message') {
     await saveMessage(db, value)
@@ -179,7 +168,7 @@ async function processEvent(db: InboxClient, row: WebhookRow, deliveryId: string
   }
 
   if (row.event === 'whatsapp.message_error') {
-    console.error(`WhatsApp reported an account error: ${JSON.stringify(value.errors ?? value)}`)
+    console.error(`WhatsApp reported an account error: ${JSON.stringify(payload['errors'] ?? value)}`)
     return
   }
 
@@ -209,7 +198,7 @@ async function recoverPending(db: InboxClient, skipId: string): Promise<void> {
   }
 
   for (const raw of data ?? []) {
-    const row = raw as WebhookRow & { delivery_id: string }
+    const row = raw as unknown as WebhookRow & { delivery_id: string }
     try {
       await processEvent(db, row, row.delivery_id)
       await markProcessed(db, row.id)
@@ -221,12 +210,7 @@ async function recoverPending(db: InboxClient, skipId: string): Promise<void> {
   }
 }
 
-async function respond(
-  db: InboxClient,
-  body: unknown,
-  status: number,
-  skipId?: string,
-): Promise<Response> {
+async function respond(db: InboxClient, body: unknown, status: number, skipId?: string): Promise<Response> {
   try {
     await recoverPending(db, skipId ?? '')
   } catch (cause) {
@@ -264,7 +248,7 @@ export const Route = createFileRoute('/api/public/whatsapp/webhook')({
         const stored = await storeEvent(supabaseAdmin, {
           deliveryId,
           event,
-          payload: asRecord(verified.payload),
+          payload: asDict(verified.payload),
         })
         if (!stored.ok) return json({ error: 'Could not store webhook' }, 500)
 
