@@ -2,7 +2,7 @@ import { verifyWebhookRequest, WebhookError } from '@lovable.dev/webhooks-js'
 import { createFileRoute } from '@tanstack/react-router'
 
 import type { Json as DbJson } from '@/integrations/supabase/types'
-import { applyStatus, reconcileMessage, type InboxClient } from '@/lib/whatsapp-status'
+import { reconcileMessage, type InboxClient } from '@/lib/whatsapp-status'
 
 type Dict = Record<string, unknown>
 type WebhookRow = {
