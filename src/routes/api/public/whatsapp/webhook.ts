@@ -15,11 +15,11 @@ type WebhookRow = {
 
 const asDict = (value: unknown): Dict =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Dict) : {}
-const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
 const text = (source: Dict, key: string): string | null =>
   typeof source[key] === 'string' ? (source[key] as string) : null
 const nested = (source: Dict, key: string): Dict => asDict(source[key])
-const nestedList = (source: Dict, key: string): unknown[] => asList(source[key])
+const nestedList = (source: Dict, key: string): unknown[] =>
+  Array.isArray(source[key]) ? (source[key] as unknown[]) : []
 const asJson = (value: unknown): DbJson => value as unknown as DbJson
 
 function json(body: unknown, status = 200) {
@@ -99,13 +99,11 @@ async function saveMessage(db: InboxClient, value: Dict): Promise<void> {
       .from('whatsapp_inbound_messages')
       .insert({
         message_id: messageId,
-        sender: from,
+        from_number: from,
         type,
-        body,
+        body: body ?? caption,
         media_id: text(media, 'id'),
         media_mime_type: text(media, 'mime_type'),
-        media_caption: caption ?? body,
-        media_filename: text(media, 'filename'),
         raw: asJson(message),
       })
       .select('id')
@@ -155,7 +153,9 @@ async function saveStatuses(db: InboxClient, value: Dict, deliveryId: string): P
 
 async function processEvent(db: InboxClient, row: WebhookRow, deliveryId: string): Promise<void> {
   const payload = asDict(row.payload)
-  const value = nested(asDict(nestedList(asDict(nestedList(payload, 'entry')[0]), 'changes')[0]), 'value')
+  const entry = asDict(nestedList(payload, 'entry')[0])
+  const change = asDict(nestedList(entry, 'changes')[0])
+  const value = nested(change, 'value')
 
   if (row.event === 'whatsapp.message') {
     await saveMessage(db, value)

@@ -1,7 +1,8 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/integrations/supabase/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database as Schema } from '@/integrations/supabase/types'
 
-export type InboxClient = SupabaseClient<Database>
+export type InboxClient = SupabaseClient<Schema>
 
 export type OrderRow = {
   id: string
@@ -14,19 +15,17 @@ export type OrderRow = {
   provider_error: string | null
 }
 
+type OrderUpdate = Database['public']['Tables']['whatsapp_orders']['Update']
+
 const RANK: Record<string, number> = { pending: 0, accepted: 1, sent: 2, delivered: 3, read: 4 }
-const TIMESTAMPS: Record<string, 'sent_at' | 'delivered_at' | 'read_at'> = {
-  sent: 'sent_at',
-  delivered: 'delivered_at',
-  read: 'read_at',
-}
 
 function describeErrors(errors: unknown): string | null {
   if (!Array.isArray(errors) || errors.length === 0) return null
   const parts = errors
     .map(raw => {
       const error = raw as { message?: unknown; title?: unknown; code?: unknown }
-      const message = typeof error?.message === 'string' ? error.message : typeof error?.title === 'string' ? error.title : ''
+      const message =
+        typeof error?.message === 'string' ? error.message : typeof error?.title === 'string' ? error.title : ''
       const code = error?.code === undefined ? '' : ` [${String(error.code)}]`
       return `${message}${code}`.trim()
     })
@@ -48,20 +47,28 @@ export async function applyStatus(
 ): Promise<void> {
   const stamp = providerTimestamp ?? new Date().toISOString()
   const currentRank = RANK[order.status] ?? 0
-  const update: Record<string, unknown> = {}
+  const update: OrderUpdate = {}
 
   if (status === 'failed') {
-    if (currentRank >= (RANK.delivered ?? 3)) return
+    if (currentRank >= (RANK['delivered'] ?? 3)) return
     update.status = 'failed'
     update.failed_at = order.failed_at ?? stamp
     update.provider_error = describeErrors(errors)
   } else {
     const rank = RANK[status]
     if (rank === undefined) return
-    const column = TIMESTAMPS[status]
-    if (column && !order[column]) update[column] = stamp
+    if (status === 'sent' && !order.sent_at) update.sent_at = stamp
+    if (status === 'delivered' && !order.delivered_at) update.delivered_at = stamp
+    if (status === 'read' && !order.read_at) update.read_at = stamp
     if (rank > currentRank) update.status = status
-    if (Object.keys(update).length === 0) return
+    if (
+      update.status === undefined &&
+      update.sent_at === undefined &&
+      update.delivered_at === undefined &&
+      update.read_at === undefined
+    ) {
+      return
+    }
   }
 
   update.updated_at = new Date().toISOString()
