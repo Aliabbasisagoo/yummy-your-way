@@ -1,6 +1,8 @@
 # Restaurant website
 - [x] Import and activate the requested UI/UX Pro Max design skill.
-- [ ] Rework the website for SAGE Cafe & Grill with 3D animation and verified public details/reviews.
+- [x] Rework the website for SAGE Cafe & Grill with 3D animation and verified public details/reviews.
+- [x] Use 21st.dev-inspired 3D patterns (3D carousel, tilt cards).
+- [ ] Confirm real SAGE menu prices with the restaurant (current prices are placeholders).
 - [x] Create a reference-inspired restaurant menu and ordering interface.
 - [x] Add food imagery, location selection, search, categories, and a working basket.
 - [x] Verify the page and interactions.
