@@ -72,7 +72,7 @@ function Hero({ onMenu }: { onMenu: () => void }) {
 
 function Carousel({ onAdd }: { onAdd: (id: string) => void }) {
   const items = menuItems.filter(i => i.image)
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(1)
   const step = 30 // degrees between cards: a fanned arc, not a full ring
   const radius = 560
   return <section className="section"><div className="site-width" style={{ textAlign: 'center' }}>
