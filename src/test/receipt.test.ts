@@ -7,20 +7,20 @@ const placedAt = new Date('2026-10-10T17:00:00Z')
 
 describe('order receipt', () => {
   it('takes prices from the menu and ignores dishes that are not on it', () => {
-    expect(orderLines({ karahi: 2, biryani: 1, 'not-a-dish': 5 })).toEqual([
-      { id: 'karahi', name: 'Chicken Karahi', quantity: 2, unitPrice: 1450, lineTotal: 2900, portion: 'Half kg' },
-      { id: 'biryani', name: 'Chicken Biryani', quantity: 1, unitPrice: 450, lineTotal: 450, portion: 'Single serving' },
+    expect(orderLines({ 'tarragon-steak': 2, 'chicken-parm': 1, 'not-a-dish': 5 })).toEqual([
+      { id: 'tarragon-steak', name: 'Beef Tarragon Steak', quantity: 2, unitPrice: 2450, lineTotal: 4900, portion: 'Single' },
+      { id: 'chicken-parm', name: 'Chicken Parmesan Pasta', quantity: 1, unitPrice: 1890, lineTotal: 1890, portion: 'Single' },
     ])
   })
 
   it('totals the basket from menu prices', () => {
-    expect(orderTotals({ karahi: 1, naan: 3 }).total).toBe(1750)
+    expect(orderTotals({ 'sage-burger': 1, 'onion-rings': 3 }).total).toBe(3600)
   })
 
   it('names the location, the customer and the amount owed', () => {
     const receipt = buildReceipt(
       {
-        cart: { karahi: 1 },
+        cart: { 'sage-burger': 1 },
         mode: 'Delivery',
         locationName: 'Satellite Town, Rawalpindi',
         customerName: 'Ali Khan',
@@ -35,25 +35,25 @@ describe('order receipt', () => {
     expect(receipt).toContain('Location: Satellite Town, Rawalpindi')
     expect(receipt).toContain('Customer: Ali Khan')
     expect(receipt).toContain('Phone: 0300 1234567')
-    expect(receipt).toContain(`• 1 × Chicken Karahi (Half kg) — ${money(1450)}`)
-    expect(receipt).toContain(`*Total: ${money(1450)}*`)
+    expect(receipt).toContain(`• 1 × Sage Signature Burger (With fries) — ${money(1650)}`)
+    expect(receipt).toContain(`*Total: ${money(1650)}*`)
   })
 
   it('leaves out the phone number and the note when they were not given', () => {
     const receipt = buildReceipt(
-      { cart: { naan: 2 }, mode: 'Pick-Up', locationName: 'Commercial Market', customerName: 'Sara' },
+      { cart: { 'onion-rings': 2 }, mode: 'Pick-Up', locationName: 'Commercial Market', customerName: 'Sara' },
       'ANK-20261010-AAAA',
       placedAt,
     )
 
     expect(receipt).not.toContain('Phone:')
     expect(receipt).not.toContain('Note:')
-    expect(receipt).toContain(`• 2 × Butter Naan — ${money(200)}`)
+    expect(receipt).toContain(`• 2 × Onion Rings — ${money(1300)}`)
   })
 
   it('carries the customer note through to the restaurant', () => {
     const receipt = buildReceipt(
-      { cart: { naan: 1 }, mode: 'Pick-Up', locationName: 'Commercial Market', customerName: 'Sara', note: 'Extra spicy' },
+      { cart: { 'onion-rings': 1 }, mode: 'Pick-Up', locationName: 'Commercial Market', customerName: 'Sara', note: 'Extra spicy' },
       'ANK-20261010-BBBB',
       placedAt,
     )

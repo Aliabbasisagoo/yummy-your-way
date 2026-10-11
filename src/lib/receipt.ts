@@ -68,7 +68,7 @@ export function buildReceipt(draft: OrderDraft, orderRef: string, placedAt: Date
   }).format(placedAt)
 
   const head = [
-    '*Anarkali Restaurant — new order*',
+    '*SAGE Cafe & Grill F-7 — new order*',
     '',
     `Order: ${orderRef}`,
     `Placed: ${placed} (Karachi)`,
