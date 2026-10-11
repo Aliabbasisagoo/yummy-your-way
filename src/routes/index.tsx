@@ -73,17 +73,17 @@ function Hero({ onMenu }: { onMenu: () => void }) {
 function Carousel({ onAdd }: { onAdd: (id: string) => void }) {
   const items = menuItems.filter(i => i.image)
   const [index, setIndex] = useState(0)
-  const step = 360 / items.length
-  const radius = 330
+  const step = 32
+  const radius = 560
   return <section className="section"><div className="site-width" style={{ textAlign: 'center' }}>
     <div className="section-kicker">Signature plates</div><h2 className="section-title">The dishes Islamabad keeps coming back for</h2>
     <div className="carousel3d"><div className="carousel3d-track" style={{ transform: `translateZ(-${radius}px) rotateY(${-index * step}deg)` }}>
-      {items.map((item, i) => <article key={item.id} className="c3d-card" style={{ transform: `rotateY(${i * step}deg) translateZ(${radius}px)`, filter: ((index % items.length) + items.length) % items.length === i ? 'none' : 'brightness(.55)' }}>
+      {items.map((item, i) => <article key={item.id} className="c3d-card" style={{ transform: `rotateY(${i * step}deg) translateZ(${radius}px)`, filter: index === i ? 'none' : 'brightness(.55)' }}>
         <img src={item.image} alt={item.name} width={1024} height={768} loading="lazy" />
         <div className="c3d-body" style={{ textAlign: 'left' }}><h3>{item.name}</h3><p>{item.description}</p><div className="c3d-foot">{money(item.price)}<Button size="sm" onClick={() => onAdd(item.id)}><Plus />Add</Button></div></div>
       </article>)}
     </div></div>
-    <div className="carousel-controls"><Button variant="outline" size="icon" aria-label="Previous dish" onClick={() => setIndex(i => i - 1)}><ChevronLeft /></Button><Button variant="outline" size="icon" aria-label="Next dish" onClick={() => setIndex(i => i + 1)}><ChevronRight /></Button></div>
+    <div className="carousel-controls"><Button variant="outline" size="icon" aria-label="Previous dish" disabled={index === 0} onClick={() => setIndex(i => Math.max(0, i - 1))}><ChevronLeft /></Button><Button variant="outline" size="icon" aria-label="Next dish" disabled={index === items.length - 1} onClick={() => setIndex(i => Math.min(items.length - 1, i + 1))}><ChevronRight /></Button></div>
   </div></section>
 }
 
