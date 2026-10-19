@@ -286,3 +286,25 @@
 @media (prefers-reduced-motion: reduce) {
   .plate, .ring, .ember, .carousel3d-track, .tilt, .hero3d-bg { animation:none !important; transition:none !important; }
 }
+
+/* ReviewSense admin */
+.rs { --rs-good: oklch(0.6 0.17 145); --rs-neutral: oklch(0.55 0.03 255); --rs-bad: oklch(0.58 0.22 27); min-height: 100vh; max-width: 1200px; margin: 0 auto; padding: 32px 20px; display: grid; gap: 24px; }
+.rs-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.rs-header h1 { font-size: 2rem; font-weight: 700; }
+.rs-header p { color: var(--muted-foreground); }
+.rs-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: 0 4px 18px oklch(0 0 0 / .15); }
+.rs textarea { width: 100%; background: var(--background); color: var(--foreground); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.rs-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.rs-summary, .rs-columns { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); align-items: start; }
+.rs-columns > div { display: grid; gap: 12px; }
+.rs-stat { display: flex; align-items: center; gap: 14px; }
+.rs-stat svg { width: 32px; height: 32px; }
+.rs-stat small { display: block; color: var(--muted-foreground); }
+.rs-stat strong { font-size: 1.8rem; }
+.rs-columns h2 { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.rs-positive { color: var(--rs-good); } .rs-neutral { color: var(--rs-neutral); } .rs-negative { color: var(--rs-bad); }
+.rs-review p { white-space: pre-wrap; }
+.rs-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .85rem; color: var(--muted-foreground); }
+.rs-meta button { margin-left: auto; }
+.rs-badge { border: 1px solid currentColor; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+@media (max-width: 768px) { .rs-summary, .rs-columns { grid-template-columns: 1fr; } }
